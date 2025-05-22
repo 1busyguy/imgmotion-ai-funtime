@@ -55,7 +55,7 @@ export const CREDIT_PACKS = [
     name: '5000 Credits',
     description: 'Best value for power users',
     amount: 5000,
-    price: 5000, // $50 in cents
+    price: 8000, // $80 in cents
     priceId: STRIPE_PRICE_IDS.CREDIT_PACK_5000,
   }
 ];
@@ -119,7 +119,7 @@ export const PRICING_TIERS: PricingTier[] = [
       },
       yearly: {
         priceId: STRIPE_PRICE_IDS.PRO_YEARLY || null,
-        amount: 29000, // $290/year
+        amount: 30000, // $300/year
         discount: 16,  // 16% discount compared to monthly
       },
     },
@@ -141,11 +141,11 @@ export const PRICING_TIERS: PricingTier[] = [
     pricing: {
       monthly: {
         priceId: STRIPE_PRICE_IDS.BUSINESS_MONTHLY || null,
-        amount: 5900, // $59/month
+        amount: 9900, // $99/month
       },
       yearly: {
         priceId: STRIPE_PRICE_IDS.BUSINESS_YEARLY || null,
-        amount: 59000, // $590/year
+        amount: 99700, // $997/year
         discount: 16,  // 16% discount compared to monthly
       },
     },
