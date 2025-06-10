@@ -97,6 +97,7 @@ export function MediaGenerationForm({
   const [endImageUrl, setEndImageUrl] = useState<string | null>(null);
   const [startImagePreview, setStartImagePreview] = useState<string | null>(null);
   const [endImagePreview, setEndImagePreview] = useState<string | null>(null);
+  const [imageDimensions, setImageDimensions] = useState<{width: number, height: number} | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
@@ -122,11 +123,42 @@ export function MediaGenerationForm({
     getUser();
   }, [supabase]);
 
+  // Helper function to detect image dimensions from file
+  const detectImageSize = (file: File): Promise<{width: number, height: number}> => {
+    return new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      img.onload = () => {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        URL.revokeObjectURL(img.src); // Clean up object URL
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(img.src); // Clean up object URL
+        reject(new Error('Failed to load image'));
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  // Helper function to detect image dimensions from URL
+  const detectImageSizeFromUrl = (url: string): Promise<{width: number, height: number}> => {
+    return new Promise((resolve, reject) => {
+      const img = document.createElement('img');
+      img.onload = () => {
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      };
+      img.onerror = () => {
+        reject(new Error('Failed to load image from URL'));
+      };
+      img.crossOrigin = 'anonymous'; // For CORS if needed
+      img.src = url;
+    });
+  };
+
 
   const generatedMediaType: MediaType = generationMode === 'image' ? 'image' : 'video';
 
   // --- Image Handling ---
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'start' | 'end') => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>, type: 'start' | 'end') => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -136,17 +168,60 @@ export function MediaGenerationForm({
         else { setEndImageFile(file); setEndImageUrl(null); setEndImagePreview(result); }
       };
       reader.readAsDataURL(file);
+
+      // Detect image dimensions for image2video mode
+      if (generationMode === 'image2video' && type === 'start') {
+        try {
+          const dimensions = await detectImageSize(file);
+          setImageDimensions(dimensions);
+          console.log(`Image dimensions detected: ${dimensions.width}x${dimensions.height}`);
+        } catch (error) {
+          console.error('Error detecting image dimensions:', error);
+          // Fallback to default dimensions
+          setImageDimensions({ width: 1024, height: 1024 });
+        }
+      }
     } else {
-         if (type === 'start') { setStartImageFile(null); setStartImagePreview(null); }
+         if (type === 'start') { 
+           setStartImageFile(null); 
+           setStartImagePreview(null); 
+           if (generationMode === 'image2video') {
+             setImageDimensions(null);
+           }
+         }
          else { setEndImageFile(null); setEndImagePreview(null); }
     }
   };
-  const handleImageSelection = useCallback((url: string | null, type: 'start' | 'end') => {
-    if (type === 'start') { setStartImageUrl(url); setStartImageFile(null); setStartImagePreview(url); }
+  const handleImageSelection = useCallback(async (url: string | null, type: 'start' | 'end') => {
+    if (type === 'start') { 
+      setStartImageUrl(url); 
+      setStartImageFile(null); 
+      setStartImagePreview(url); 
+      
+      // Detect dimensions for selected image URL in image2video mode
+      if (generationMode === 'image2video' && url) {
+        try {
+          const dimensions = await detectImageSizeFromUrl(url);
+          setImageDimensions(dimensions);
+          console.log(`Selected image dimensions: ${dimensions.width}x${dimensions.height}`);
+        } catch (error) {
+          console.error('Error detecting selected image dimensions:', error);
+          setImageDimensions({ width: 1024, height: 1024 });
+        }
+      }
+    }
     else { setEndImageUrl(url); setEndImageFile(null); setEndImagePreview(url); }
-  }, []);
+  }, [generationMode]);
   const clearImage = (type: 'start' | 'end') => {
-    if (type === 'start') { setStartImageFile(null); setStartImageUrl(null); setStartImagePreview(null); if (startFileInputRef.current) startFileInputRef.current.value = ""; }
+    if (type === 'start') { 
+      setStartImageFile(null); 
+      setStartImageUrl(null); 
+      setStartImagePreview(null); 
+      if (startFileInputRef.current) startFileInputRef.current.value = ""; 
+      if (generationMode === 'image2video') {
+        setImageDimensions(null);
+      }
+    }
     else { setEndImageFile(null); setEndImageUrl(null); setEndImagePreview(null); if (endFileInputRef.current) endFileInputRef.current.value = ""; }
   };
 
@@ -228,6 +303,11 @@ export function MediaGenerationForm({
     }
   }, [prompt, startImageFile, endImageFile, startImageUrl, endImageUrl, pollingMediaId]);
 
+  // Clear dimensions when generation mode changes
+  useEffect(() => {
+    setImageDimensions(null);
+  }, [generationMode]);
+
   // General cleanup effect
   useEffect(() => {
     return () => {
@@ -246,6 +326,9 @@ export function MediaGenerationForm({
     if (generationMode === 'firstLastFrameVideo') {
       if (!startImageFile && !startImageUrl) { toast.error("Please provide a start image."); return; }
       if (!endImageFile && !endImageUrl) { toast.error("Please provide an end image."); return; }
+      if (!prompt.trim()) { toast.error("Please enter a prompt."); return; }
+    } else if (generationMode === 'image2video') {
+      if (!startImageFile && !startImageUrl) { toast.error("Please provide an input image."); return; }
       if (!prompt.trim()) { toast.error("Please enter a prompt."); return; }
     } else {
       if (!prompt.trim()) { toast.error("Please enter a prompt."); return; }
@@ -267,7 +350,7 @@ export function MediaGenerationForm({
 
     try {
       // Image Compression & Direct Upload
-      if (generationMode === 'firstLastFrameVideo') {
+      if (generationMode === 'firstLastFrameVideo' || generationMode === 'image2video') {
         const compressionOptions = { maxSizeMB: 0.95, maxWidthOrHeight: 1920, useWebWorker: true };
 
         if (startImageFile) {
@@ -282,7 +365,7 @@ export function MediaGenerationForm({
           finalStartImageUrl = uploadResult.url;
         }
 
-        if (endImageFile) {
+        if (endImageFile && generationMode === 'firstLastFrameVideo') {
           let compressedEndFile = endImageFile;
            try {
             const compressToastId = toast.loading("Compressing end image...");
@@ -294,7 +377,12 @@ export function MediaGenerationForm({
           finalEndImageUrl = uploadResult.url;
         }
 
-        if (!finalStartImageUrl || !finalEndImageUrl) throw new Error("Missing required image URLs after processing uploads.");
+        if (generationMode === 'firstLastFrameVideo' && (!finalStartImageUrl || !finalEndImageUrl)) {
+          throw new Error("Missing required image URLs after processing uploads.");
+        }
+        if (generationMode === 'image2video' && !finalStartImageUrl) {
+          throw new Error("Missing required input image URL after processing upload.");
+        }
       }
 
       // Prepare FormData
@@ -305,6 +393,17 @@ export function MediaGenerationForm({
       if (generationMode === 'firstLastFrameVideo') {
         formData.append('startImageUrl', finalStartImageUrl!);
         formData.append('endImageUrl', finalEndImageUrl!);
+      } else if (generationMode === 'image2video') {
+        formData.append('startImageUrl', finalStartImageUrl!);
+        // Include detected image dimensions
+        if (imageDimensions) {
+          formData.append('imageWidth', imageDimensions.width.toString());
+          formData.append('imageHeight', imageDimensions.height.toString());
+        } else {
+          // Fallback to default dimensions if detection failed
+          formData.append('imageWidth', '1024');
+          formData.append('imageHeight', '1024');
+        }
       }
 
       // Call server action
@@ -332,6 +431,8 @@ export function MediaGenerationForm({
 
   const isLoading = isSubmitting || isPolling; // Simplified loading state
   const isFirstLastMode = generationMode === 'firstLastFrameVideo';
+  const isImage2VideoMode = generationMode === 'image2video';
+  const requiresImages = isFirstLastMode || isImage2VideoMode;
 
   // --- Render Image Input Helper ---
   const renderImageInput = (type: 'start' | 'end') => {
@@ -356,6 +457,12 @@ export function MediaGenerationForm({
                 </motion.div>
               )}
             </AnimatePresence>
+            {/* Show detected dimensions for image2video mode */}
+            {isImage2VideoMode && type === 'start' && previewSrc && imageDimensions && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Detected: {imageDimensions.width} × {imageDimensions.height}px
+              </p>
+            )}
         </div>
       </div>
     );
@@ -368,11 +475,12 @@ export function MediaGenerationForm({
       <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }} className="space-y-5">
         <form onSubmit={handleSubmit} className="space-y-5">
           {isFirstLastMode && ( <> {renderImageInput('start')} {renderImageInput('end')} </> )}
+          {isImage2VideoMode && ( <> {renderImageInput('start')} </> )}
           <div>
-            <Label htmlFor={`${generationMode}-prompt`} className="block text-base font-medium mb-2 text-foreground/90"> {isFirstLastMode ? 'Describe the transition or style' : 'Enter your prompt'} </Label>
-            <Textarea id={`${generationMode}-prompt`} placeholder={isFirstLastMode ? 'e.g., "Smooth transition..."' : `Describe the ${generatedMediaType}...`} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={isLoading} rows={isFirstLastMode ? 3 : 7} className="resize-none glass-input bg-white/5 border-white/15 focus:border-primary/60 focus:ring-primary/30 focus:ring-2 transition-all text-base p-3 rounded-lg"/>
+            <Label htmlFor={`${generationMode}-prompt`} className="block text-base font-medium mb-2 text-foreground/90"> {isFirstLastMode ? 'Describe the transition or style' : isImage2VideoMode ? 'Describe the video motion' : 'Enter your prompt'} </Label>
+                          <Textarea id={`${generationMode}-prompt`} placeholder={isFirstLastMode ? 'e.g., "Smooth transition..."' : isImage2VideoMode ? 'e.g., "Camera slowly zooms in..."' : `Describe the ${generatedMediaType}...`} value={prompt} onChange={(e) => setPrompt(e.target.value)} disabled={isLoading} rows={requiresImages ? 3 : 7} className="resize-none glass-input bg-white/5 border-white/15 focus:border-primary/60 focus:ring-primary/30 focus:ring-2 transition-all text-base p-3 rounded-lg"/>
           </div>
-          <Button type="submit" disabled={isLoading || !userId || userCredits < creditCost || (isFirstLastMode ? (!startImageFile && !startImageUrl) || (!endImageFile && !endImageUrl) || !prompt.trim() : !prompt.trim())} className="w-full glass-button bg-gradient-to-r from-primary to-secondary text-white hover:opacity-95 hover:shadow-lg transition-all duration-300 shadow-md text-lg py-3 font-semibold">
+          <Button type="submit" disabled={isLoading || !userId || userCredits < creditCost || (isFirstLastMode ? (!startImageFile && !startImageUrl) || (!endImageFile && !endImageUrl) || !prompt.trim() : generationMode === 'image2video' ? (!startImageFile && !startImageUrl) || !prompt.trim() : !prompt.trim())} className="w-full glass-button bg-gradient-to-r from-primary to-secondary text-white hover:opacity-95 hover:shadow-lg transition-all duration-300 shadow-md text-lg py-3 font-semibold">
             {isLoading ? ( <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> {isSubmitting ? 'Starting...' : 'Generating...'}</> ) : ( <><Sparkles className="mr-2 h-5 w-5" /> Generate ({creditCost} credits)</> )}
           </Button>
         </form>

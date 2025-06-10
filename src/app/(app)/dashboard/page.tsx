@@ -63,7 +63,7 @@ export default async function DashboardPage() {
         <CardContent className="pt-8">
           {/* Update Tabs to include the new mode */}
           <Tabs defaultValue={defaultTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-8 bg-transparent p-0 gap-4"> {/* Changed to grid-cols-3 */}
+            <TabsList className="grid w-full grid-cols-4 mb-8 bg-transparent p-0 gap-4"> {/* Changed to grid-cols-4 */}
               <TabsTrigger
                 value="image"
                 className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg border border-white/20 bg-white/15 text-foreground/80 hover:bg-white/20 hover:text-foreground data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-secondary/80 data-[state=active]:text-primary-foreground data-[state=active]:border-transparent data-[state=active]:shadow-lg transition-all duration-300 text-base font-medium"
@@ -81,7 +81,14 @@ export default async function DashboardPage() {
                 value="firstLastFrameVideo"
                 className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg border border-white/20 bg-white/15 text-foreground/80 hover:bg-white/20 hover:text-foreground data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-secondary/80 data-[state=active]:text-primary-foreground data-[state=active]:border-transparent data-[state=active]:shadow-lg transition-all duration-300 text-base font-medium"
               >
-                 <StepForward className="w-5 h-5 mr-1" /> Video (Img2Vid)
+                 <StepForward className="w-5 h-5 mr-1" /> Video (Transition)
+              </TabsTrigger>
+              {/* Image2Video Tab Trigger */}
+              <TabsTrigger
+                value="image2video"
+                className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg border border-white/20 bg-white/15 text-foreground/80 hover:bg-white/20 hover:text-foreground data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/80 data-[state=active]:to-secondary/80 data-[state=active]:text-primary-foreground data-[state=active]:border-transparent data-[state=active]:shadow-lg transition-all duration-300 text-base font-medium"
+              >
+                 <Film className="w-5 h-5 mr-1" /> Video (Img2Vid)
               </TabsTrigger>
             </TabsList>
 
@@ -106,6 +113,15 @@ export default async function DashboardPage() {
               <MediaGenerationForm
                 generationMode="firstLastFrameVideo" // Use generationMode prop
                 creditCost={CREDIT_COSTS.firstLastFrameVideo}
+                userCredits={totalCredits}
+              />
+            </TabsContent>
+
+            {/* Image2Video Tab Content */}
+            <TabsContent value="image2video" className="mt-0">
+              <MediaGenerationForm
+                generationMode="image2video" // Use generationMode prop
+                creditCost={CREDIT_COSTS.image2video}
                 userCredits={totalCredits}
               />
             </TabsContent>

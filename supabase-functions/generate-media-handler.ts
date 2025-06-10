@@ -6,6 +6,7 @@ const DEPLOYMENT_IDS = {
   image: '8f96cb86-5cbb-4ad0-9837-8a79eeb5103a',
   video: 'd07cf1d5-412c-4270-b925-ffd6416abd1c',
   firstLastFrameVideo: '8c463102-0525-4cf1-8535-731fee0f93b4',
+  image2video: 'b50938f1-215b-458e-92f7-d08eb45dff42',
 };
 type GenerationMode = keyof typeof DEPLOYMENT_IDS;
 
@@ -66,15 +67,23 @@ serve(async (req: Request) => {
     if (authError || !user) throw new Error('Unauthorized');
     const userId = user.id;
 
-    const body = await req.json();
-    const { prompt, mediaType, startImageUrl, endImageUrl }: { prompt: string; mediaType: string; generationMode: GenerationMode; mediaId: string; startImageUrl?: string; endImageUrl?: string; } = body;
+        const body = await req.json();
+    console.log(`[Generate] Received request body:`, JSON.stringify(body, null, 2));
+    
+    const { prompt, mediaType, startImageUrl, endImageUrl, imageWidth, imageHeight }: { prompt: string; mediaType: string; generationMode: GenerationMode; mediaId: string; startImageUrl?: string; endImageUrl?: string; imageWidth?: string; imageHeight?: string; } = body;
     mediaId = body.mediaId; generationMode = body.generationMode;
 
     // Log the type of generationMode received
     console.log(`[Generate] Received generationMode: ${generationMode} (Type: ${typeof generationMode})`);
-
-    if (!prompt || !mediaType || !generationMode || !mediaId || !(generationMode in DEPLOYMENT_IDS)) { throw new Error(`Missing or invalid parameters. Mode: ${generationMode}`); }
+    console.log(`[Generate] Parameters - prompt: ${prompt}, mediaType: ${mediaType}, mediaId: ${mediaId}`);
+    console.log(`[Generate] Image data - startImageUrl: ${startImageUrl}, imageWidth: ${imageWidth}, imageHeight: ${imageHeight}`);
+    
+    if (!prompt || !mediaType || !generationMode || !mediaId || !(generationMode in DEPLOYMENT_IDS)) { 
+      console.error(`[Generate] Validation failed - prompt: ${!!prompt}, mediaType: ${!!mediaType}, generationMode: ${!!generationMode}, mediaId: ${!!mediaId}, validMode: ${generationMode in DEPLOYMENT_IDS}`);
+      throw new Error(`Missing or invalid parameters. Mode: ${generationMode}`); 
+    }
     if (generationMode === 'firstLastFrameVideo' && (!startImageUrl || !endImageUrl)) { throw new Error('Missing start or end image URL for firstLastFrameVideo mode'); }
+    if (generationMode === 'image2video' && !startImageUrl) { throw new Error('Missing input image URL for image2video mode'); }
     console.log(`[Generate] Validated: userId=${userId}, mediaId=${mediaId}, mode=${generationMode}`);
 
     const { error: initialUpdateError } = await supabaseAdmin.from('generated_media').update({ status: 'processing' }).eq('id', mediaId).eq('user_id', userId);
@@ -93,6 +102,15 @@ serve(async (req: Request) => {
     let apiInputs: Record<string, any>;
     if (generationMode === 'firstLastFrameVideo') {
         apiInputs = { prompt: prompt, start_image: startImageUrl!, end_image: endImageUrl! }; // Assert non-null
+    } else if (generationMode === 'image2video') {
+        apiInputs = { 
+            positive_prompt: prompt, 
+            input_img_url: startImageUrl!, 
+            negative_prompt: "",
+            img_width: imageWidth || "1024",
+            img_height: imageHeight || "1024", 
+            img_seed: ""
+        }; 
     } else {
         apiInputs = { prompt: prompt };
     }

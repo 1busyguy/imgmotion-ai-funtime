@@ -40,6 +40,10 @@ export async function generateMedia(formData: FormData): Promise<{
   // Get URLs directly from FormData (sent by client after direct upload/selection)
   const startImageUrl = formData.get('startImageUrl') as string | null;
   const endImageUrl = formData.get('endImageUrl') as string | null;
+  
+  // Get image dimensions for image2video mode
+  const imageWidth = formData.get('imageWidth') as string | null;
+  const imageHeight = formData.get('imageHeight') as string | null;
 
   // --- Validation ---
   if (!prompt || !generationMode || !mediaType) {
@@ -49,6 +53,10 @@ export async function generateMedia(formData: FormData): Promise<{
     // Now just check if the URLs were provided
     if (!startImageUrl) return { success: false, error: 'Missing start image URL' };
     if (!endImageUrl) return { success: false, error: 'Missing end image URL' };
+  }
+  if (generationMode === 'image2video') {
+    // Check if the input image URL was provided
+    if (!startImageUrl) return { success: false, error: 'Missing input image URL' };
   }
 
   const creditCost = CREDIT_COSTS[generationMode];
@@ -81,6 +89,9 @@ export async function generateMedia(formData: FormData): Promise<{
         insertPayload.start_image_url = startImageUrl; // Store URL from client
         insertPayload.end_image_url = endImageUrl;     // Store URL from client
     }
+    if (generationMode === 'image2video') {
+        insertPayload.start_image_url = startImageUrl; // Store input image URL from client
+    }
     const { data: newMediaRecord, error: insertError } = await supabaseAdmin
       .from('generated_media').insert(insertPayload).select('id').single();
     if (insertError || !newMediaRecord) {
@@ -96,6 +107,11 @@ export async function generateMedia(formData: FormData): Promise<{
     if (generationMode === 'firstLastFrameVideo') {
         functionPayload.startImageUrl = startImageUrl; // Pass URL
         functionPayload.endImageUrl = endImageUrl;     // Pass URL
+    }
+    if (generationMode === 'image2video') {
+        functionPayload.startImageUrl = startImageUrl; // Pass input image URL
+        functionPayload.imageWidth = imageWidth;       // Pass detected width
+        functionPayload.imageHeight = imageHeight;     // Pass detected height
     }
 
     // 4. Start the Supabase Function (Fire and Forget from Action's perspective)
