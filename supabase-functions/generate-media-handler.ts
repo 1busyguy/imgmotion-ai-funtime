@@ -6,7 +6,7 @@ const DEPLOYMENT_IDS = {
   image: '8f96cb86-5cbb-4ad0-9837-8a79eeb5103a',
   video: 'd07cf1d5-412c-4270-b925-ffd6416abd1c',
   firstLastFrameVideo: '8c463102-0525-4cf1-8535-731fee0f93b4',
-  image2video: 'b50938f1-215b-458e-92f7-d08eb45dff42',
+  image2video: 'b50938f1-215b-458e-92f7-d88eb4d4ff42',
 };
 type GenerationMode = keyof typeof DEPLOYMENT_IDS;
 
